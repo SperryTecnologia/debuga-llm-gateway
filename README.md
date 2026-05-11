@@ -46,7 +46,7 @@ Client (OpenAI SDK / curl)
 │        │       │        │
 │   ┌────▼──┐ ┌──▼────┐   │
 │   │ Cloud │ │ vLLM  │   │
-│   │Provider│ │Provider│  │
+│   │Provider│ │Provider│ │
 │   └───┬───┘ └───┬───┘   │
 └───────┼─────────┼───────┘
         │         │

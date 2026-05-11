@@ -1,0 +1,76 @@
+# ============================================================
+# docker-compose-with-vllm.yml — Gateway + vLLM local
+# ============================================================
+# This example runs the gateway alongside a local vLLM instance.
+# Requires: NVIDIA GPU + NVIDIA Container Toolkit
+#
+# Usage:
+#   cp ../.env.example ../.env
+#   # Edit .env: set PREFERRED_PROVIDER=auto, ENABLE_LOCAL_INFERENCE=true
+#   docker compose -f examples/docker-compose-with-vllm.yml up -d
+#
+# The gateway will route to vLLM locally, with cloud as fallback.
+# ============================================================
+
+services:
+  # ---- vLLM Local Inference ----
+  vllm:
+    image: vllm/vllm-openai:latest
+    container_name: debuga-vllm
+    deploy:
+      resources:
+        reservations:
+          devices:
+            - driver: nvidia
+              count: all
+              capabilities: [gpu]
+    ports:
+      - "8000:8000"
+    volumes:
+      - model-cache:/root/.cache/huggingface
+    environment:
+      - HF_TOKEN=${HF_TOKEN:-}
+    command: >
+      --model ${VLLM_MODEL:-Qwen/Qwen2.5-Coder-7B-Instruct-AWQ}
+      --quantization awq
+      --max-model-len 8192
+      --gpu-memory-utilization 0.9
+      --port 8000
+    healthcheck:
+      test: ["CMD", "curl", "-sf", "http://localhost:8000/health"]
+      interval: 30s
+      timeout: 10s
+      retries: 5
+      start_period: 120s
+    restart: unless-stopped
+
+  # ---- LLM Gateway ----
+  gateway:
+    build:
+      context: ..
+      dockerfile: Dockerfile
+    container_name: debuga-llm-gateway
+    ports:
+      - "${PORT:-3100}:3100"
+    environment:
+      - PORT=3100
+      - PREFERRED_PROVIDER=auto
+      - ENABLE_LOCAL_INFERENCE=true
+      - CLOUD_PROVIDER_URL=${CLOUD_PROVIDER_URL:-http://localhost:9000/v1}
+      - CLOUD_PROVIDER_API_KEY=${CLOUD_PROVIDER_API_KEY:-}
+      - VLLM_URL=http://vllm:8000/v1
+      - GATEWAY_API_KEY=${GATEWAY_API_KEY:-your-local-dev-key}
+      - REQUEST_TIMEOUT_MS=${REQUEST_TIMEOUT_MS:-60000}
+    depends_on:
+      vllm:
+        condition: service_healthy
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped
+
+volumes:
+  model-cache:
+    name: debuga-model-cache

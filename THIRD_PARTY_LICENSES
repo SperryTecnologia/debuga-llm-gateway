@@ -1,0 +1,79 @@
+# Third-Party Licenses
+
+This project uses or references the following third-party projects.
+Each project is governed by its own license terms.
+
+---
+
+## OpenAI API Specification
+
+- **Reference**: https://platform.openai.com/docs/api-reference
+- **Usage**: This project implements an API compatible with the OpenAI chat completions format. It does not use the OpenAI SDK or any proprietary OpenAI code. The API format is used as a de facto industry standard for LLM inference endpoints.
+
+---
+
+## Express
+
+- **Project**: https://github.com/expressjs/express
+- **License**: MIT License
+- **Copyright**: TJ Holowaychuk and contributors
+- **Usage**: HTTP server framework
+
+---
+
+## TypeScript
+
+- **Project**: https://github.com/microsoft/TypeScript
+- **License**: Apache License 2.0
+- **Copyright**: Microsoft Corporation
+- **Usage**: Programming language and compiler
+
+---
+
+## Vitest
+
+- **Project**: https://github.com/vitest-dev/vitest
+- **License**: MIT License
+- **Copyright**: Vitest contributors
+- **Usage**: Unit testing framework
+
+---
+
+## vLLM
+
+- **Project**: https://github.com/vllm-project/vllm
+- **License**: Apache License 2.0
+- **Copyright**: vLLM Team
+- **Usage**: Compatible local inference provider (external dependency, not bundled)
+
+---
+
+## Docker
+
+- **Project**: https://www.docker.com/
+- **License**: Apache License 2.0 (Docker Engine)
+- **Copyright**: Docker, Inc.
+- **Usage**: Containerization
+
+---
+
+## tsx
+
+- **Project**: https://github.com/privatenumber/tsx
+- **License**: MIT License
+- **Copyright**: Hiroki Osame
+- **Usage**: TypeScript execution for development
+
+---
+
+## dotenv
+
+- **Project**: https://github.com/motdotla/dotenv
+- **License**: BSD-2-Clause
+- **Copyright**: Scott Motte
+- **Usage**: Environment variable loading
+
+---
+
+This file is provided for informational purposes. For the most up-to-date
+license information, please refer to each project's official repository.

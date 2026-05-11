@@ -1,0 +1,24 @@
+# ============================================================
+# docker-compose.yml — debuga-llm-gateway (standalone)
+# ============================================================
+# Usage:
+#   cp .env.example .env
+#   docker compose up -d
+#
+# For usage with vLLM, see examples/docker-compose-with-vllm.yml
+# ============================================================
+
+services:
+  gateway:
+    build: .
+    container_name: debuga-llm-gateway
+    ports:
+      - "${PORT:-3100}:3100"
+    env_file:
+      - .env
+    healthcheck:
+      test: ["CMD", "wget", "-qO-", "http://localhost:3100/health"]
+      interval: 15s
+      timeout: 5s
+      retries: 3
+    restart: unless-stopped

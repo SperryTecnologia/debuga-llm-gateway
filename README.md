@@ -1,165 +1,145 @@
 # debuga-llm-gateway
 
-Gateway OpenAI-compatible para roteamento cloud/local com fallback automático. Community skeleton da stack LLM do [debuga.ai](https://debuga.ai).
+**Gateway OpenAI-compatible experimental para roteamento híbrido entre modelos locais e providers cloud.**
 
-## Sobre
+Desenvolvida por [Sperry Tecnologia](https://www.sperrytecnologia.com.br).
 
-O **debuga-llm-gateway** é um skeleton público de um gateway que expõe uma API compatível com o formato OpenAI e roteia requisições entre um provider cloud genérico e uma instância local de [vLLM](https://github.com/vllm-project/vllm), com fallback automático.
+---
 
-Este repositório é uma **versão community/skeleton** — uma base funcional para desenvolvimento e laboratório. A versão de produção do debuga.ai pode conter lógica adicional não publicada neste repositório.
+## O que é
 
-### O que este repositório contém
+Este repositório contém estudos e protótipos de um gateway unificado compatível com a API OpenAI, projetado para rotear requisições entre modelos locais (GPU) e providers cloud de forma transparente. O gateway abstrai a complexidade de múltiplos providers atrás de uma interface única.
 
-- API server com endpoints OpenAI-compatible (`/v1/chat/completions`, `/v1/models`)
-- Roteamento configurável entre provider cloud e vLLM local
-- Fallback automático (local → cloud ou cloud → local)
-- Suporte a streaming SSE
-- Autenticação por API key (exemplo de laboratório)
-- Testes unitários com Vitest
-- Docker e docker-compose para ambiente local
-- Documentação de arquitetura, providers, API e segurança
+Este é um repositório de **componente experimental**, não é o gateway utilizado em produção.
 
-### O que este repositório **não** contém
+---
 
-- Lógica real de produção do debuga.ai
-- Prompts internos ou system prompts proprietários
-- Billing, tenant routing ou regras de plano
-- Secrets, tokens ou credenciais
-- Dados de clientes ou conversas reais
-- Código copiado do SaaS debuga-ai
+## Status
 
-## Arquitetura
+| Aspecto | Classificação |
+|---------|--------------|
+| Tipo | Componente experimental |
+| Código de produção | Não incluso |
+| Maturidade | Community / Lab |
+| Uso atual na plataforma | Não (roteamento é interno ao backend) |
+
+---
+
+## Como se conecta à debuga.ai
+
+A [debuga.ai](https://github.com/SperryTecnologia/debuga-ai) implementa roteamento LLM internamente no backend (via `streamRoute`). Este repositório estuda a viabilidade de extrair essa lógica para um serviço dedicado, útil em cenários:
+
+- Multi-tenant enterprise (múltiplas instâncias da plataforma)
+- Compartilhamento de GPU entre serviços
+- Observabilidade centralizada de inferência
+- Rate limiting e caching por tenant
+
+---
+
+## Conceito de Gateway
 
 ```
-Client (OpenAI SDK / curl)
-    │
-    ▼
-┌─────────────────────────┐
-│   debuga-llm-gateway    │
-│   (:3100)               │
-│                         │
-│   ┌─────────────────┐   │
-│   │     Router      │   │
-│   │  (cloud/local/  │   │
-│   │   auto+fallback)│   │
-│   └────┬───────┬────┘   │
-│        │       │        │
-│   ┌────▼──┐ ┌──▼────┐   │
-│   │ Cloud │ │ vLLM  │   │
-│   │Provider│ │Provider│ │
-│   └───┬───┘ └───┬───┘   │
-└───────┼─────────┼───────┘
-        │         │
-        ▼         ▼
-   Cloud API   vLLM Local
-   (:9000)     (:8000)
+┌─────────────────────────────────────────────────┐
+│                 LLM Gateway                      │
+│  ┌───────────────────────────────────────────┐  │
+│  │         OpenAI-compatible API             │  │
+│  ├───────────────────────────────────────────┤  │
+│  │         Roteamento Inteligente            │  │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  │  │
+│  │  │ Ollama  │  │ OpenAI  │  │ Gemini  │  │  │
+│  │  │ (local) │  │ (cloud) │  │ (cloud) │  │  │
+│  │  └─────────┘  └─────────┘  └─────────┘  │  │
+│  ├───────────────────────────────────────────┤  │
+│  │         Observabilidade                   │  │
+│  │  Latência | Tokens | Custos | Erros       │  │
+│  └───────────────────────────────────────────┘  │
+└─────────────────────────────────────────────────┘
 ```
 
-## Quick Start
+---
 
-### 1. Clonar e configurar
+## Funcionalidades Estudadas
 
-```bash
-git clone https://github.com/SperryTecnologia/debuga-llm-gateway.git
-cd debuga-llm-gateway
-cp .env.example .env
-# Editar .env com suas configurações
-```
+| Feature | Descrição | Status |
+|---------|-----------|--------|
+| API OpenAI-compatible | `/v1/chat/completions` drop-in | Prototipado |
+| Roteamento por modelo | Direciona para provider correto | Prototipado |
+| Fallback automático | Retry em provider alternativo | Prototipado |
+| Rate limiting | Por API key / tenant | Planejado |
+| Caching de respostas | Cache semântico para queries repetidas | Planejado |
+| Observabilidade | Métricas Prometheus-compatible | Planejado |
+| Load balancing | Distribuição entre múltiplas GPUs | Planejado |
 
-### 2. Instalar dependências
+---
 
-```bash
-npm install
-```
+## Roteamento
 
-### 3. Iniciar em modo desenvolvimento
+Estratégias de roteamento estudadas:
 
-```bash
-npm run dev
-```
-
-### 4. Testar
-
-```bash
-# Health check
-curl http://localhost:3100/health
-
-# Chat completion
-curl http://localhost:3100/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer your-local-dev-key" \
-  -d '{
-    "model": "default",
-    "messages": [
-      {"role": "user", "content": "Hello"}
-    ]
-  }'
-```
-
-### 5. Com Docker
-
-```bash
-docker compose up -d
-```
-
-## Modos de Roteamento
-
-O gateway suporta três modos de roteamento, configuráveis via `PREFERRED_PROVIDER`:
-
-| Modo | Comportamento |
-|------|--------------|
-| `cloud` | Envia todas as requisições para o provider cloud |
-| `local` | Envia todas as requisições para o vLLM local |
-| `auto` | Tenta local primeiro; se falhar, faz fallback para cloud |
-
-O modo `auto` é útil para ambientes onde o vLLM local pode estar indisponível (ex.: GPU em manutenção).
-
-## API
-
-O gateway expõe os seguintes endpoints, compatíveis com o formato OpenAI:
-
-| Endpoint | Método | Descrição |
-|----------|--------|-----------|
-| `/health` | GET | Health check do gateway e providers |
-| `/v1/models` | GET | Listar modelos disponíveis |
-| `/v1/chat/completions` | POST | Chat completion (streaming e não-streaming) |
-
-Consulte [docs/openai-compatible-api.md](docs/openai-compatible-api.md) para detalhes.
-
-## Scripts
-
-| Comando | Descrição |
-|---------|-----------|
-| `npm run dev` | Iniciar em modo desenvolvimento (watch) |
-| `npm run build` | Compilar TypeScript |
-| `npm start` | Iniciar versão compilada |
-| `npm test` | Rodar testes |
-| `npm run test:watch` | Rodar testes em modo watch |
-
-## Documentação
-
-| Documento | Descrição |
+| Estratégia | Descrição |
 |-----------|-----------|
-| [Arquitetura](docs/architecture.md) | Visão geral da arquitetura do gateway |
-| [Providers](docs/providers.md) | Como funcionam os providers (cloud, vLLM, fallback) |
-| [API](docs/openai-compatible-api.md) | Referência da API OpenAI-compatible |
-| [Segurança](docs/security.md) | Autenticação e considerações de segurança |
-| [Roadmap](docs/roadmap.md) | Funcionalidades planejadas |
+| Priority-based | Tenta provider primário, fallback em ordem |
+| Latency-based | Escolhe provider com menor latência recente |
+| Cost-based | Prioriza local (custo zero), cloud como fallback |
+| Capability-based | Direciona por tipo de tarefa (código, texto, imagem) |
+| Round-robin | Distribuição uniforme (para load balancing) |
 
-## Repositórios Relacionados
+---
 
-| Repositório | Descrição |
-|-------------|-----------|
-| [debuga-ai](https://github.com/SperryTecnologia/debuga-ai) | Plataforma SaaS principal |
-| [debuga-llm-stack](https://github.com/SperryTecnologia/debuga-llm-stack) | Arquitetura da stack LLM |
-| [debuga-qwen-coder-lab](https://github.com/SperryTecnologia/debuga-qwen-coder-lab) | Lab de avaliação de modelos Qwen-Coder |
-| [debuga-vllm-engine](https://github.com/SperryTecnologia/debuga-vllm-engine) | Engine de inferência vLLM |
-| **debuga-llm-gateway** | Este repositório — gateway de roteamento |
+## Observabilidade
 
-## Aviso
+Métricas planejadas para o gateway:
 
-Este é um **community skeleton** — uma base funcional para desenvolvimento e laboratório. A versão de produção do debuga.ai pode incluir lógica adicional de roteamento, billing, tenant isolation, rate limiting e outras funcionalidades não publicadas neste repositório.
+| Métrica | Descrição |
+|---------|-----------|
+| Latência por provider | P50, P95, P99 |
+| Tokens consumidos | Input + output por provider |
+| Custo estimado | USD por provider/tenant |
+| Taxa de erro | Por provider e por tipo |
+| Cache hit rate | Eficiência do cache semântico |
+| Fallback rate | Frequência de acionamento de fallback |
+
+---
+
+## Uso Previsto
+
+- Avaliar viabilidade de gateway dedicado para cenários enterprise
+- Documentar padrões de roteamento LLM
+- Prototipar observabilidade de inferência
+- Preparar arquitetura para multi-tenant
+
+---
+
+## Limitações
+
+- O gateway dedicado adiciona latência (hop extra)
+- Para instância única, o roteamento interno do backend é suficiente
+- Caching semântico tem trade-offs de consistência
+- Este repositório não contém o código de produção da plataforma
+- Não é necessário para deploy padrão da debuga.ai
+
+---
+
+## Roadmap
+
+| Item | Status |
+|------|--------|
+| Estudo de viabilidade | Concluído |
+| Protótipo de roteamento | Concluído |
+| Fallback automático | Concluído |
+| Rate limiting por tenant | Planejado |
+| Cache semântico | Planejado |
+| Métricas Prometheus | Planejado |
+| Documentação de migração | Planejado |
+
+---
 
 ## Licença
 
-Este projeto está licenciado sob [Apache License 2.0](LICENSE).
+Protótipos e documentação sob licença MIT. O código de produção da plataforma é privado.
+
+---
+
+## Sperry Tecnologia
+
+Desenvolvido por [Sperry Tecnologia](https://www.sperrytecnologia.com.br) — infraestrutura, segurança, DevOps e automação com IA.

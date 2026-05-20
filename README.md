@@ -40,15 +40,15 @@ A [debuga.ai](https://github.com/SperryTecnologia/debuga-ai) implementa roteamen
 
 ```
 ┌─────────────────────────────────────────────────┐
-│                 LLM Gateway                      │
+│                 LLM Gateway                     │
 │  ┌───────────────────────────────────────────┐  │
 │  │         OpenAI-compatible API             │  │
 │  ├───────────────────────────────────────────┤  │
 │  │         Roteamento Inteligente            │  │
-│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐  │  │
-│  │  │ Ollama  │  │ OpenAI  │  │ Gemini  │  │  │
-│  │  │ (local) │  │ (cloud) │  │ (cloud) │  │  │
-│  │  └─────────┘  └─────────┘  └─────────┘  │  │
+│  │  ┌─────────┐  ┌─────────┐  ┌─────────┐    │  │
+│  │  │ Ollama  │  │ OpenAI  │  │ Gemini  │    │  │
+│  │  │ (local) │  │ (cloud) │  │ (cloud) │    │  │
+│  │  └─────────┘  └─────────┘  └─────────┘    │  │
 │  ├───────────────────────────────────────────┤  │
 │  │         Observabilidade                   │  │
 │  │  Latência | Tokens | Custos | Erros       │  │

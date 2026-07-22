@@ -70,3 +70,8 @@ Para um deploy de produção, as seguintes funcionalidades devem ser implementad
 ## Aviso
 
 Este é um community skeleton. A versão de produção do debuga.ai implementa camadas adicionais de segurança, autenticação, autorização e isolamento não publicadas neste repositório.
+
+
+## Estado revisado
+
+A revisão pública de 22/07/2026 confirma que a autenticação é uma única API key opcional e que não há rate limiting, RBAC ou isolamento de tenant no código atual.

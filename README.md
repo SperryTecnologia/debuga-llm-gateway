@@ -1,377 +1,195 @@
-# debuga-llm-gateway
+<p align="center">
+  <img src="https://debuga.ai/favicon.ico" width="84" alt="debuga.ai" />
+</p>
 
-**Gateway unificado OpenAI-compatible para roteamento inteligente entre modelos locais (GPU) e providers cloud — com observabilidade, fallback automático e controle de custos.**
+<h1 align="center">debuga.ai LLM Gateway</h1>
 
-Desenvolvido por [Sperry Tecnologia](https://www.sperrytecnologia.com.br).
+<p align="center">
+  <strong>Gateway community OpenAI-compatible para roteamento entre provider local e cloud</strong>
+</p>
 
----
+<p align="center">
+  <a href="#quick-start">Quick Start</a> ·
+  <a href="docs/openai-compatible-api.md">API</a> ·
+  <a href="docs/architecture.md">Arquitetura</a> ·
+  <a href="docs/providers.md">Providers</a> ·
+  <a href="SECURITY.md">Segurança</a>
+</p>
 
-## Visão Geral
-
-Este repositório implementa um gateway de inferência LLM que expõe uma API 100% compatível com o padrão OpenAI (`/v1/chat/completions`), roteando requisições de forma transparente entre modelos locais e providers cloud. Projetado para cenários enterprise da plataforma [debuga.ai](https://debuga.ai) onde múltiplas instâncias ou tenants compartilham infraestrutura de GPU.
-
-```mermaid
-flowchart TB
-    subgraph Clients["Clientes"]
-        C1["debuga.ai<br/>Instância 1"]
-        C2["debuga.ai<br/>Instância 2"]
-        C3["API Consumers<br/>Terceiros"]
-    end
-
-    subgraph Gateway["LLM Gateway"]
-        direction TB
-        AUTH["Auth & Rate Limit<br/>API Key / Tenant"]
-        ROUTER{{"Router Engine<br/>Decisão Inteligente"}}
-        CACHE["Semantic Cache<br/>Respostas similares"]
-        OBS["Observability<br/>Métricas + Logs"]
-    end
-
-    subgraph Providers["Providers"]
-        direction TB
-        subgraph Local["GPU Local"]
-            VLLM["vLLM<br/>Qwen Coder 7B"]
-            OLLAMA["Ollama<br/>Qwen 72B"]
-        end
-        subgraph Cloud["Cloud"]
-            OAI["OpenAI"]
-            ANT["Anthropic"]
-            GEM["Google"]
-            DS["DeepSeek"]
-        end
-    end
-
-    C1 --> AUTH
-    C2 --> AUTH
-    C3 --> AUTH
-    AUTH --> ROUTER
-    ROUTER --> CACHE
-    CACHE -->|"Cache miss"| Local
-    CACHE -->|"Cache miss"| Cloud
-    ROUTER --> OBS
-```
+<p align="center">
+  <img alt="Status" src="https://img.shields.io/badge/status-community%20preview-0891b2" />
+  <img alt="Runtime" src="https://img.shields.io/badge/runtime-TypeScript-3178c6" />
+  <img alt="Testes" src="https://img.shields.io/badge/testes-26%20casos-0b9811" />
+  <img alt="Licença" src="https://img.shields.io/badge/licen%C3%A7a-Apache--2.0-6e7681" />
+</p>
 
 ---
 
-## Funcionalidades
+> [!IMPORTANT]
+> Este é um **community preview**. Ele implementa um subconjunto pequeno e auditável de
+> uma API OpenAI-compatible. Não inclui rate limiting por tenant, cache semântico,
+> circuit breaker, billing, PII filtering ou SLA enterprise.
 
-```mermaid
-mindmap
-    root((LLM Gateway))
-        API
-            OpenAI-compatible
-            /v1/chat/completions
-            /v1/embeddings
-            /v1/models
-            Streaming SSE
-        Roteamento
-            Priority-based
-            Latency-based
-            Cost-based
-            Capability-based
-            Round-robin
-        Resiliência
-            Fallback automático
-            Circuit breaker
-            Retry com backoff
-            Health checks
-        Observabilidade
-            Prometheus metrics
-            Structured logging
-            Request tracing
-            Cost tracking
-        Segurança
-            API Key auth
-            Rate limiting per tenant
-            Request validation
-            PII filtering
-        Performance
-            Semantic cache
-            Connection pooling
-            Request batching
-            Response streaming
-```
+## Visão geral
 
----
-
-## Arquitetura de Roteamento
+O gateway expõe três rotas públicas e encaminha as chamadas para um endpoint cloud
+OpenAI-compatible ou um servidor vLLM local. No modo `auto`, tenta o provider local e
+faz fallback para cloud quando a chamada inicial falha antes do streaming começar.
 
 ```mermaid
 flowchart LR
-    subgraph Request["Requisição Entrada"]
-        REQ["POST /v1/chat/completions<br/>model: 'auto'"]
-    end
-
-    subgraph Analysis["Análise"]
-        A1["Classificação<br/>de Tarefa"]
-        A2["Estimativa<br/>de Complexidade"]
-        A3["Tamanho<br/>do Contexto"]
-    end
-
-    subgraph Decision["Decisão de Roteamento"]
-        D1{{"Score<br/>Engine"}}
-    end
-
-    subgraph Execution["Execução"]
-        E1["Provider<br/>Selecionado"]
-        E2["Fallback<br/>Chain"]
-        E3["Response<br/>Stream"]
-    end
-
-    REQ --> A1
-    REQ --> A2
-    REQ --> A3
-    A1 --> D1
-    A2 --> D1
-    A3 --> D1
-    D1 --> E1
-    E1 -->|"Falha"| E2
-    E1 -->|"Sucesso"| E3
-    E2 --> E3
+  C[Cliente] --> A[API key opcional]
+  A --> G[Gateway Express]
+  G --> R{cloud / local / auto}
+  R --> V[vLLM local]
+  R --> P[Cloud OpenAI-compatible]
+  G --> H[Health e logs básicos]
 ```
 
-### Estratégias de Roteamento
+## Estado real das capacidades
 
-| Estratégia | Descrição | Caso de Uso |
-|-----------|-----------|-------------|
-| **Priority-based** | Tenta providers em ordem de prioridade | Padrão — GPU local primeiro |
-| **Latency-based** | Escolhe provider com menor latência recente | Aplicações real-time |
-| **Cost-based** | Prioriza custo zero (local), cloud como fallback | Otimização de custo |
-| **Capability-based** | Direciona por tipo de tarefa | Código → Coder, Imagem → Vision |
-| **Round-robin** | Distribuição uniforme | Load balancing entre GPUs |
+| Capacidade | Estado | Evidência |
+|---|---|---|
+| `GET /health` | Implementado | `src/router.ts` |
+| `GET /v1/models` | Implementado | `src/router.ts` |
+| `POST /v1/chat/completions` | Implementado | `src/router.ts` |
+| Streaming SSE | Implementado | `src/utils/stream.ts` |
+| API key estática | Implementado | `src/middleware/auth.ts` |
+| Provider cloud OpenAI-compatible | Implementado | `src/providers/cloud.ts` |
+| Provider vLLM local | Implementado | `src/providers/vllm.ts` |
+| Fallback local → cloud | Implementado no modo `auto` | `src/providers/fallback.ts` |
+| Health por provider | Implementado | `src/utils/health.ts` |
+| Testes automatizados | 26 casos no código-fonte | `tests/` |
+| Embeddings | Não implementado | Roadmap |
+| Cache semântico | Não implementado | Roadmap |
+| Rate limit por tenant | Não implementado | Roadmap |
+| Circuit breaker | Não implementado | Roadmap |
+| Métricas Prometheus/tracing | Não implementado | Roadmap |
+| Billing e controle de custos | Não implementado | Roadmap |
 
----
+## Modos de roteamento
 
-## Fallback e Circuit Breaker
+| `PREFERRED_PROVIDER` | Comportamento |
+|---|---|
+| `cloud` | usa somente o provider cloud |
+| `local` | usa local quando habilitado; caso contrário, cloud |
+| `auto` | usa local como primário e cloud como fallback |
 
-```mermaid
-stateDiagram-v2
-    [*] --> Closed: Provider saudável
-    Closed --> Open: 3 falhas em 60s
-    Open --> HalfOpen: Timeout (30s)
-    HalfOpen --> Closed: Requisição sucesso
-    HalfOpen --> Open: Requisição falha
+> O fallback de streaming só pode ocorrer antes de os headers/chunks serem enviados ao cliente.
 
-    state Closed {
-        [*] --> Normal
-        Normal --> Counting: Erro detectado
-        Counting --> Normal: Reset timer
-    }
+## Quick Start
 
-    state Open {
-        [*] --> Blocked
-        Blocked --> Blocked: Requisições → Fallback
-    }
-```
-
-| Estado | Comportamento | Duração |
-|--------|--------------|---------|
-| **Closed** | Tráfego normal para o provider | Indefinido |
-| **Open** | Todo tráfego vai para fallback | 30s |
-| **Half-Open** | 1 requisição de teste | Até resultado |
-
----
-
-## Semantic Cache
-
-```mermaid
-sequenceDiagram
-    participant Client
-    participant Gateway
-    participant Cache as Semantic Cache
-    participant Provider as LLM Provider
-
-    Client->>Gateway: Requisição
-    Gateway->>Cache: Busca por similaridade
-    
-    alt Cache Hit (similarity > 0.95)
-        Cache->>Gateway: Resposta cacheada
-        Gateway->>Client: Response (latência < 50ms)
-    else Cache Miss
-        Gateway->>Provider: Forward request
-        Provider->>Gateway: Response
-        Gateway->>Cache: Armazena embedding + resposta
-        Gateway->>Client: Response
-    end
-```
-
-| Métrica | Valor Típico |
-|---------|-------------|
-| Cache hit rate | 15-25% |
-| Latência (cache hit) | < 50ms |
-| Economia estimada | 20-30% custo cloud |
-| TTL padrão | 1 hora |
-| Threshold de similaridade | 0.95 |
-
----
-
-## Observabilidade
-
-```mermaid
-flowchart LR
-    subgraph Gateway["LLM Gateway"]
-        M1["Request Metrics"]
-        M2["Provider Metrics"]
-        M3["Cost Metrics"]
-        M4["Cache Metrics"]
-    end
-
-    subgraph Stack["Observability Stack"]
-        PROM["Prometheus"]
-        GRAF["Grafana"]
-        LOKI["Loki (Logs)"]
-    end
-
-    subgraph Alertas["Alertas"]
-        A1["PagerDuty"]
-        A2["Slack"]
-    end
-
-    Gateway --> PROM
-    Gateway --> LOKI
-    PROM --> GRAF
-    PROM --> Alertas
-    LOKI --> GRAF
-```
-
-| Métrica | Descrição | Alerta |
-|---------|-----------|--------|
-| `gateway_request_total` | Total de requisições | — |
-| `gateway_request_duration_seconds` | Latência por provider | P99 > 10s |
-| `gateway_provider_errors_total` | Erros por provider | > 5% |
-| `gateway_cost_usd_total` | Custo acumulado | > limite/dia |
-| `gateway_cache_hit_ratio` | Taxa de cache hit | < 10% |
-| `gateway_circuit_open` | Circuit breakers abertos | Qualquer |
-| `gateway_active_connections` | Conexões ativas | > 100 |
-
----
-
-## Rate Limiting por Tenant
-
-```mermaid
-graph TB
-    subgraph Tenants["Tenants"]
-        T1["Tenant A<br/>100 req/min"]
-        T2["Tenant B<br/>50 req/min"]
-        T3["Tenant C<br/>200 req/min"]
-    end
-
-    subgraph Limiter["Rate Limiter"]
-        RL["Token Bucket<br/>por API Key"]
-    end
-
-    subgraph Resultado["Resultado"]
-        OK["200 OK<br/>Requisição processada"]
-        LIMIT["429 Too Many Requests<br/>Retry-After header"]
-    end
-
-    T1 --> RL
-    T2 --> RL
-    T3 --> RL
-    RL -->|"Dentro do limite"| OK
-    RL -->|"Excedeu"| LIMIT
-```
-
----
-
-## API Reference
-
-### Endpoints
-
-| Método | Path | Descrição |
-|--------|------|-----------|
-| POST | `/v1/chat/completions` | Chat completion (streaming) |
-| POST | `/v1/embeddings` | Geração de embeddings |
-| GET | `/v1/models` | Lista modelos disponíveis |
-| GET | `/health` | Health check |
-| GET | `/metrics` | Métricas Prometheus |
-
-### Exemplo de Uso
+### Docker
 
 ```bash
-curl http://localhost:3000/v1/chat/completions \
-  -H "Content-Type: application/json" \
-  -H "Authorization: Bearer $API_KEY" \
+git clone https://github.com/SperryTecnologia/debuga-llm-gateway.git
+cd debuga-llm-gateway
+cp .env.example .env
+```
+
+Edite `.env`. Para um teste cloud, configure pelo menos:
+
+```dotenv
+PREFERRED_PROVIDER=cloud
+CLOUD_PROVIDER_URL=https://seu-endpoint.example/v1
+CLOUD_PROVIDER_API_KEY=substitua
+GATEWAY_API_KEY=chave-local-de-teste
+```
+
+Depois:
+
+```bash
+docker compose config
+docker compose up -d --build
+docker compose ps
+curl -fsS http://localhost:3100/health \
+  -H 'Authorization: Bearer chave-local-de-teste'
+```
+
+### Chamada de chat
+
+```bash
+curl http://localhost:3100/v1/chat/completions \
+  -H 'Authorization: Bearer chave-local-de-teste' \
+  -H 'Content-Type: application/json' \
   -d '{
-    "model": "auto",
-    "messages": [{"role": "user", "content": "Explain Docker networking"}],
-    "stream": true
+    "model": "modelo-configurado-no-provider",
+    "messages": [
+      {"role": "user", "content": "Responda apenas OK"}
+    ],
+    "stream": false
   }'
 ```
 
-O modelo `"auto"` ativa o roteamento inteligente. Especificar um modelo (ex: `"qwen-coder-7b"`) força o provider correspondente.
+O header `X-Provider` informa qual provider atendeu a requisição.
 
----
-
-## Deploy
+## Desenvolvimento
 
 ```bash
-# 1. Clone
-git clone https://github.com/SperryTecnologia/debuga-llm-gateway.git
-cd debuga-llm-gateway
-
-# 2. Instale dependências
-pnpm install
-
-# 3. Configure
-cp .env.example .env
-# Edite com providers e API keys
-
-# 4. Desenvolvimento
-pnpm dev
-
-# 5. Produção (Docker)
-docker compose up -d
+npm install
+npm run build
+npm test
+npm run dev
 ```
 
----
+O repositório contém 26 casos de teste cobrindo providers, validação, health, autenticação
+e fallback. A execução depende da instalação das dependências listadas em `package.json`.
 
-## Estrutura do Repositório
+## Segurança
 
-```
+- se `GATEWAY_API_KEY` estiver vazio, o gateway aceita requisições sem autenticação;
+- restrinja a porta por firewall/rede;
+- use TLS em um proxy reverso;
+- não registre prompts, respostas ou chaves sem necessidade;
+- use timeout e limites de payload apropriados;
+- não trate este skeleton como segurança multi-tenant pronta.
+
+Consulte [SECURITY.md](SECURITY.md) e [docs/security.md](docs/security.md).
+
+## Estrutura
+
+```text
 debuga-llm-gateway/
-├── src/                  # Código-fonte TypeScript
-│   ├── router/           # Lógica de roteamento
-│   ├── providers/        # Adaptadores de providers
-│   ├── cache/            # Semantic cache
-│   ├── middleware/       # Auth, rate limit, logging
-│   └── metrics/          # Prometheus exporters
-├── tests/                # Testes unitários e integração
-├── examples/             # Exemplos de uso
-├── docs/                 # Documentação detalhada
-├── docker-compose.yml    # Deploy containerizado
-├── Dockerfile            # Imagem de produção
-└── README.md
+├── src/
+│   ├── middleware/
+│   ├── providers/
+│   ├── utils/
+│   ├── config.ts
+│   ├── router.ts
+│   └── index.ts
+├── tests/
+├── docs/
+├── examples/
+├── Dockerfile
+├── docker-compose.yml
+└── package.json
 ```
 
----
+## Documentação
 
-## Cenários de Uso
+| Documento | Conteúdo |
+|---|---|
+| [API](docs/openai-compatible-api.md) | Rotas e exemplos suportados |
+| [Arquitetura](docs/architecture.md) | Componentes e limites |
+| [Providers](docs/providers.md) | Cloud, local e fallback |
+| [Segurança](docs/security.md) | Riscos e hardening necessário |
+| [Roadmap](docs/roadmap.md) | Itens ainda não implementados |
 
-| Cenário | Descrição | Benefício |
-|---------|-----------|-----------|
-| **Multi-tenant** | Múltiplas instâncias compartilham GPU | Eficiência de recurso |
-| **Enterprise** | Controle centralizado de custos e acesso | Governança |
-| **Híbrido** | Dados sensíveis local, resto na cloud | Compliance |
-| **High-availability** | Fallback automático entre providers | Uptime 99.9% |
-| **Observabilidade** | Dashboard unificado de inferência | Visibilidade |
+## Ecossistema público
 
----
-
-## Repositórios Relacionados
-
-| Repositório | Descrição |
-|-------------|-----------|
-| [debuga-ai](https://github.com/SperryTecnologia/debuga-ai) | Plataforma principal |
-| [debuga-llm-stack](https://github.com/SperryTecnologia/debuga-llm-stack) | Estratégia LLM híbrida (GPU + cloud) |
-| [debuga-qwen-coder-lab](https://github.com/SperryTecnologia/debuga-qwen-coder-lab) | Avaliação de modelos para code generation |
-| [debuga-vllm-engine](https://github.com/SperryTecnologia/debuga-vllm-engine) | Serving local com vLLM |
-
----
+| Projeto | Papel |
+|---|---|
+| [debuga-ai](https://github.com/SperryTecnologia/debuga-ai) | Produto e documentação oficial |
+| [debuga-llm-stack](https://github.com/SperryTecnologia/debuga-llm-stack) | Arquitetura de referência |
+| [debuga-llm-gateway](https://github.com/SperryTecnologia/debuga-llm-gateway) | Este gateway community |
+| [debuga-vllm-engine](https://github.com/SperryTecnologia/debuga-vllm-engine) | Serving GPU de referência |
+| [debuga-qwen-coder-lab](https://github.com/SperryTecnologia/debuga-qwen-coder-lab) | Laboratório de avaliação |
 
 ## Licença
 
-Código do gateway sob licença MIT. O código de produção da plataforma é mantido em repositório privado.
+Código e documentação sob [Apache License 2.0](LICENSE).
 
----
+## Sperry Tecnologia
 
-*Sperry Tecnologia — Infraestrutura, segurança, DevOps e automação com IA.*
+- Plataforma: [debuga.ai](https://debuga.ai)
+- Contato: contato@sperrytecnologia.com.br
